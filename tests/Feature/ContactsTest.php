@@ -7,11 +7,21 @@ use Illuminate\Foundation\Testing\WithFaker;
 use Tests\TestCase;
 
 use App\Model\Contact;
+use App\User;
 use Carbon\Carbon;
 
 class ContactsTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected $user;
+
+    protected function setUp(): void 
+    {
+        parent::setUp();
+
+        $this->user = factory('App\User')->create();
+    }
 
     private function data()
     {
@@ -19,7 +29,8 @@ class ContactsTest extends TestCase
             'name' => 'User',
             'email' => 'user@test.com',
             'birthday' => '05/10/1996',
-            'company' => 'Telecom '
+            'company' => 'Telecom',
+            'api_token' => $this->user->api_token
         ];
     }
 
@@ -101,9 +112,9 @@ class ContactsTest extends TestCase
     /** @test */
     public function singleContactJson()
     {
-        $contact = factory('App\Model\Contact')->create();
+        $contact = factory('App\Model\Contact')->create([$this->user->id]);
         //dd($contact);
-        $response = $this->get('api/contacts/' . $contact->id);
+        $response = $this->get('api/contacts/' . $contact->id. '?api_token=' . $this->user->api_token);
     
         $response->assertJson([
             'name' => $contact->name,
@@ -114,12 +125,24 @@ class ContactsTest extends TestCase
     }
 
     /** @test */
+    public function onlyUsersContactsStatus()
+    {
+        $contact = factory('App\Model\Contact')->create(['user_id' => $this->user->id]);
+        
+        $user2 = factory('App\User')->create();
+
+        $response = $this->get('api/contacts/' . $contact->id . '?api_token=' . $user2->api_token);
+    
+        $response->assertStatus(403);
+    }
+
+    /** @test */
     public function editContactEquals()
     {
-        $contact = factory('App\Model\Contact')->create();
+        $contact = factory('App\Model\Contact')->create(['user_id' => $this->user->id]);
 
         $response = $this->put('api/contacts/' . $contact->id, $this->data());
-    
+        
         $contact = $contact->fresh();
 
         $this->assertEquals('User', $contact->name);
@@ -129,12 +152,63 @@ class ContactsTest extends TestCase
     }
 
     /** @test */
+    public function editContactAuthenticatedEquals()
+    {
+        $contact = factory('App\Model\Contact')->create(['user_id' => $this->user->id]);
+
+        $user2 = factory('App\User')->create();
+        
+        $response = $this->put('api/contacts/' . $contact->id, array_merge($this->data(), ['api_token' => $user2->api_token]));
+        
+        $response->assertStatus(403);
+    }
+
+    /** @test */
     public function deleteContactCount()
     {
-        $contact = factory('App\Model\Contact')->create();
+        $contact = factory('App\Model\Contact')->create(['user_id' => $this->user->id]);
 
-        $response = $this->delete('api/contacts/' . $contact->id);
+        $response = $this->delete('api/contacts/' . $contact->id, ['api_token' => $this->user->api_token]);
     
         $this->assertCount(0, Contact::all());
+    }
+
+    /** @test */
+    public function deleteContactAuthenticatedCount()
+    { 
+        $contact = factory('App\Model\Contact')->create(['user_id' => $this->user->id]);
+
+        $user2 = factory('App\User')->create();
+
+        $response = $this->delete('api/contacts/' . $contact->id, array_merge($this->data(), ['api_token' => $user2->api_token]));
+    
+        $response->assertStatus(403);
+    }
+
+    /** @test */
+    public function redirectUnauthenticated()
+    {
+        $response = $this->post('/api/contacts', array_merge($this->data(), ['api_token' => '']));
+    
+        $response->assertRedirect('/login');
+
+        $this->assertCount(0, Contact::all());
+    }
+
+    /** @test */
+    public function allContactsOfAuthUser()
+    {
+        $this->withoutExceptionHandling();
+
+        $user1 = factory('App\User')->create();
+        $user2 = factory('App\User')->create();
+
+        $contact1 = factory('App\Model\Contact')->create(['user_id' => $user1->id]);
+        $contact2 = factory('App\Model\Contact')->create(['user_id' => $user2->id]);
+
+        $response = $this->get('/api/contacts?api_token=' . $user1->api_token);
+    
+        $response->assertJsonCount(1)->assertJson([['id' => $contact1->id]]);
+
     }
 }

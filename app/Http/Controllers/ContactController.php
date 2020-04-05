@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Model\Contact;
 use Illuminate\Http\Request;
+use App\User;
 
 class ContactController extends Controller
 {
@@ -19,36 +20,41 @@ class ContactController extends Controller
 
     public function index()
     {
-        //
-    }
-
-    public function create()
-    {
-        //
+        return request()->user()->contacts;
     }
 
     public function store(Request $request)
     {
-        Contact::create($this->validateData());
+        request()->user()->contacts()->create($this->validateData());
     }
 
     public function show(Contact $contact)
     {
-        return $contact;
-    }
+        if(request()->user()->isNot($contact->user))
+        {
+            return response([], 403);
+        }
 
-    public function edit(Contact $contact)
-    {
-        //
+        return $contact;
     }
 
     public function update(Request $request, Contact $contact)
     {
+        if(request()->user()->isNot($contact->user))
+        {
+            return response([], 403);
+        }
+
         $contact->update($this->validateData()); 
     }
 
     public function destroy(Contact $contact)
     {
+        if(request()->user()->isNot($contact->user))
+        {
+            return response([], 403);
+        }
+        
         $contact->delete();
     }
 }
