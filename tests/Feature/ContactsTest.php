@@ -112,7 +112,7 @@ class ContactsTest extends TestCase
     /** @test */
     public function singleContactJson()
     {
-        $contact = factory('App\Model\Contact')->create([$this->user->id]);
+        $contact = factory('App\Model\Contact')->create(['user_id' => $this->user->id]);
         //dd($contact);
         $response = $this->get('api/contacts/' . $contact->id. '?api_token=' . $this->user->api_token);
     
@@ -121,11 +121,12 @@ class ContactsTest extends TestCase
             'email' => $contact->email,
             'birthday' => '1996-05-10T00:00:00.000000Z',
             'company' => $contact->company,
+            'user_id' => $contact->user_id,
         ]);
     }
 
     /** @test */
-    public function onlyUsersContactsStatus()
+    public function singleContactAuthenticatedJson()
     {
         $contact = factory('App\Model\Contact')->create(['user_id' => $this->user->id]);
         
@@ -209,6 +210,5 @@ class ContactsTest extends TestCase
         $response = $this->get('/api/contacts?api_token=' . $user1->api_token);
     
         $response->assertJsonCount(1)->assertJson([['id' => $contact1->id]]);
-
     }
 }
