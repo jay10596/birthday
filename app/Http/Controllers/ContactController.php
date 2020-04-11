@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Model\Contact;
 use Illuminate\Http\Request;
 use App\User;
+use App\Http\Resources\ContactResource;
 
 class ContactController extends Controller
 {
@@ -20,12 +21,14 @@ class ContactController extends Controller
 
     public function index()
     {
-        return request()->user()->contacts;
+        return ContactResource::collection(request()->user()->contacts);
     }
 
     public function store(Request $request)
     {
-        request()->user()->contacts()->create($this->validateData());
+        $contact = request()->user()->contacts()->create($this->validateData());
+        
+        return (new ContactResource($contact))->response()->setStatusCode(201);
     }
 
     public function show(Contact $contact)
@@ -35,7 +38,7 @@ class ContactController extends Controller
             return response([], 403);
         }
 
-        return $contact;
+        return new ContactResource($contact);
     }
 
     public function update(Request $request, Contact $contact)
@@ -45,7 +48,9 @@ class ContactController extends Controller
             return response([], 403);
         }
 
-        $contact->update($this->validateData()); 
+        $contact->update($this->validateData());
+
+        return (new ContactResource($contact))->response()->setStatusCode(200); 
     }
 
     public function destroy(Contact $contact)
@@ -56,5 +61,7 @@ class ContactController extends Controller
         }
         
         $contact->delete();
+
+        return response([], 204);
     }
 }

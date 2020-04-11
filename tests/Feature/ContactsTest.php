@@ -49,13 +49,29 @@ class ContactsTest extends TestCase
     {
         $this->withoutExceptionHandling();
 
-        $this->post('/api/contacts', $this->data());
+        $response = $this->post('/api/contacts', $this->data());
 
         $contact = Contact::first();
         
         $this->assertEquals('User', $contact->name);
         $this->assertEquals('user@test.com', $contact->email);
         $this->assertEquals('Telecom', $contact->company);
+
+        $response->assertStatus(201);
+
+        $response->assertJson([
+            'data' => [
+                'id' => $contact->id,
+                'name' => $contact->name,
+                'email' => $contact->email,
+                'birthday' => $contact->birthday->format('d.m.Y'),
+                'company' => $contact->company,
+                'last_updated' => $contact->updated_at->diffForHumans(),
+            ],
+            'links' => [
+                'self' => $contact->path()
+            ]
+        ]);
     }
 
     /** @test */
@@ -113,15 +129,18 @@ class ContactsTest extends TestCase
     public function singleContactJson()
     {
         $contact = factory('App\Model\Contact')->create(['user_id' => $this->user->id]);
-        //dd($contact);
+        
         $response = $this->get('api/contacts/' . $contact->id. '?api_token=' . $this->user->api_token);
     
         $response->assertJson([
-            'name' => $contact->name,
-            'email' => $contact->email,
-            'birthday' => '1996-05-10T00:00:00.000000Z',
-            'company' => $contact->company,
-            'user_id' => $contact->user_id,
+            'data' => [
+                'id' => $contact->id,
+                'name' => $contact->name,
+                'email' => $contact->email,
+                'birthday' => $contact->birthday->format('d.m.Y'),
+                'company' => $contact->company,
+                'last_updated' => $contact->updated_at->diffForHumans(),
+            ]
         ]);
     }
 
@@ -142,7 +161,7 @@ class ContactsTest extends TestCase
     {
         $contact = factory('App\Model\Contact')->create(['user_id' => $this->user->id]);
 
-        $response = $this->put('api/contacts/' . $contact->id, $this->data());
+        $response = $this->put('api/contacts/' . $contact->id . '?api_token=' . $this->user->api_token, $this->data());
         
         $contact = $contact->fresh();
 
@@ -150,6 +169,17 @@ class ContactsTest extends TestCase
         $this->assertEquals('user@test.com', $contact->email);
         $this->assertEquals('05/10/1996', $contact->birthday->format('m/d/Y'));
         $this->assertEquals('Telecom', $contact->company);
+    
+        $response->assertStatus(200);
+
+        $response->assertJson([
+            'data' => [
+                'id' => $contact->id,
+            ],
+            'links' => [
+                'self' => $contact->path()
+            ]
+        ]);
     }
 
     /** @test */
@@ -159,12 +189,12 @@ class ContactsTest extends TestCase
 
         $user2 = factory('App\User')->create();
         
-        $response = $this->put('api/contacts/' . $contact->id, array_merge($this->data(), ['api_token' => $user2->api_token]));
+        $response = $this->put('api/contacts/' . $contact->id . '?api_token=' . $user2->api_token, $this->data());
         
         $response->assertStatus(403);
     }
 
-    /** @test */
+    /** @test */ #Differeny way to add API token
     public function deleteContactCount()
     {
         $contact = factory('App\Model\Contact')->create(['user_id' => $this->user->id]);
@@ -172,21 +202,21 @@ class ContactsTest extends TestCase
         $response = $this->delete('api/contacts/' . $contact->id, ['api_token' => $this->user->api_token]);
     
         $this->assertCount(0, Contact::all());
+
+        $response->assertStatus(204);
     }
 
-    /** @test */
+    /** @test */ #Differeny way to add API token
     public function deleteContactAuthenticatedCount()
     { 
-        $contact = factory('App\Model\Contact')->create(['user_id' => $this->user->id]);
+        $contact = factory('App\Model\Contact')->create();
 
-        $user2 = factory('App\User')->create();
-
-        $response = $this->delete('api/contacts/' . $contact->id, array_merge($this->data(), ['api_token' => $user2->api_token]));
+        $response = $this->delete('api/contacts/' . $contact->id, ['api_token' => $this->user->api_token]);
     
         $response->assertStatus(403);
     }
 
-    /** @test */
+    /** @test */ #Differeny way to add API token
     public function redirectUnauthenticated()
     {
         $response = $this->post('/api/contacts', array_merge($this->data(), ['api_token' => '']));
@@ -209,6 +239,14 @@ class ContactsTest extends TestCase
 
         $response = $this->get('/api/contacts?api_token=' . $user1->api_token);
     
-        $response->assertJsonCount(1)->assertJson([['id' => $contact1->id]]);
+        $response->assertJsonCount(1)->assertJson([
+            'data' => [
+                [
+                    'data' => [
+                        'id' => $contact1->id
+                    ]
+                ]
+            ] 
+        ]);
     }
 }
